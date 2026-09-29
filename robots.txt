@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://parkinsonsniagara.ca/sitemap.xml
