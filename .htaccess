@@ -1,0 +1,33 @@
+# Niagara Parkinson's Support Group — shared-hosting config (Apache/LiteSpeed)
+
+# Serve index.php as the home page for "/"
+DirectoryIndex index.php index.html
+
+# Friendly error page
+ErrorDocument 404 /
+
+# Old bookmarks to /index.html -> send them to the home page
+Redirect 301 /index.html /
+
+# Force HTTPS (WHC provides free SSL; uncomment once the cert is active)
+# RewriteEngine On
+# RewriteCond %{HTTPS} off
+# RewriteRule ^(.*)$ https://%{HTTP_HOST}/$1 [R=301,L]
+
+# Keep the PHP internals and cache private (served data only, never browsable)
+RedirectMatch 404 ^/lib(/.*)?$
+RedirectMatch 404 ^/cache(/.*)?$
+
+# Cache static assets
+<IfModule mod_expires.c>
+  ExpiresActive On
+  ExpiresByType text/css "access plus 7 days"
+  ExpiresByType application/javascript "access plus 7 days"
+  ExpiresByType image/svg+xml "access plus 7 days"
+</IfModule>
+
+# Basic security headers
+<IfModule mod_headers.c>
+  Header set X-Content-Type-Options "nosniff"
+  Header set Referrer-Policy "strict-origin-when-cross-origin"
+</IfModule>

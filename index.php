@@ -1,3 +1,32 @@
+<?php
+/**
+ * Home page. News (Google Sheet) and Events (Google Calendar) render here,
+ * server-side, so they appear in the HTML for every visitor regardless of
+ * browser or settings. Every dynamic piece is wrapped so a failure degrades
+ * to a quiet fallback and never breaks the page.
+ */
+// Never show PHP notices/warnings to a visitor on this page, whatever the
+// server's php.ini says. Errors are logged, not printed.
+@ini_set('display_errors', '0');
+
+$__cfg = [];
+$__news = ['items'=>[], 'fetched_at'=>null, 'stale_days'=>7, 'configured'=>false];
+$__events = ['items'=>[], 'fetched_at'=>null, 'stale_days'=>7, 'configured'=>false];
+try {
+    $__cfg_file = __DIR__ . '/lib/config.php';
+    if (is_file($__cfg_file)) {
+        $__cfg = @require $__cfg_file;
+        if (!is_array($__cfg)) $__cfg = [];
+    }
+    if (is_file(__DIR__ . '/lib/news.php'))   require_once __DIR__ . '/lib/news.php';
+    if (is_file(__DIR__ . '/lib/events.php')) require_once __DIR__ . '/lib/events.php';
+    @date_default_timezone_set($__cfg['timezone'] ?? 'America/Toronto');
+    if (function_exists('np_news_get'))   $__news   = np_news_get($__cfg);
+    if (function_exists('np_events_get')) $__events = np_events_get($__cfg);
+} catch (Throwable $e) {
+    // Swallow everything: the page renders with empty/fallback feed blocks.
+}
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -28,7 +57,7 @@
 
 <header class="main"><div class="wrap">
   <div class="nav" id="nav">
-    <a class="brand" href="/index.html">
+    <a class="brand" href="/">
       <svg class="mark" viewBox="0 0 48 48" fill="none" aria-hidden="true">
         <circle cx="24" cy="24" r="23" fill="#0d6e7a"/>
         <path d="M14 30c4-1 6-5 6-10 0-4 2-7 5-7s5 3 5 7c0 6 3 9 7 9" stroke="#e8913a" stroke-width="3" stroke-linecap="round" fill="none"/>
@@ -37,8 +66,10 @@
       <span class="brand-text"><b>Niagara Parkinson's</b><span>Support Group</span></span>
     </a>
     <nav class="navlinks" aria-label="Main">
-      <a href="/index.html">Home</a>
-      <a href="/index.html#movement">Movement</a>
+      <a href="/">Home</a>
+      <a href="/#movement">Movement</a>
+      <a href="/events.html">Events</a>
+      <a href="/#news">News</a>
       <a href="/resources.html">Resources</a>
     </nav>
     <div class="nav-cta">
@@ -87,6 +118,95 @@
       <span class="eyebrow">A note on the region</span>
       <h2>You're not on your own.</h2>
       <p>Niagara is underserved for Parkinson's specialists, and many people travel to Hamilton or London for neurology care. Part of why this group exists is to help people in our community feel less alone in navigating that — and to share what we learn along the way.</p>
+      <p>Locally, <a href="https://www.hoteldieushaver.org/site/specialty-programs/parkinsons-rehab-hds" target="_blank" rel="noopener">Hotel Dieu Shaver's Parkinson's Rehab Program</a> offers outpatient rehabilitation in St. Catharines (a physician's referral is required). See our <a href="/resources.html">resources</a> for more.</p>
+    </div>
+  </div>
+</section>
+
+<!-- NEWS & EVENTS (dynamic) -->
+<section class="section" id="news" style="background:var(--mist)">
+  <div class="wrap">
+    <div class="home-feed">
+
+      <!-- News column -->
+      <div>
+        <div class="feed-head">
+          <h2>Latest news</h2>
+          <?php
+            if (!empty($__news['items'])) {
+                echo np_freshness_note($__news['fetched_at'], $__news['stale_days']);
+            }
+          ?>
+        </div>
+        <?php if (!empty($__news['items'])): ?>
+          <div class="news-list">
+            <?php foreach (array_slice($__news['items'], 0, 4) as $it): ?>
+              <article class="news-item">
+                <span class="src">
+                  <?php
+                    $d = $it['date'] ? strtotime($it['date']) : 0;
+                    echo $d ? np_e(date('M j, Y', $d)) : 'News';
+                  ?>
+                </span>
+                <h3>
+                  <?php if (!empty($it['link'])): ?>
+                    <a href="<?php echo np_e($it['link']); ?>" target="_blank" rel="noopener"><?php echo np_e($it['title']); ?></a>
+                  <?php else: ?>
+                    <?php echo np_e($it['title']); ?>
+                  <?php endif; ?>
+                </h3>
+                <?php if (!empty($it['body'])): ?>
+                  <p class="body"><?php echo np_e($it['body']); ?></p>
+                <?php endif; ?>
+              </article>
+            <?php endforeach; ?>
+          </div>
+        <?php else: ?>
+          <p class="feed-empty">News updates will appear here soon. In the meantime, feel free to <a href="#connect">get in touch</a>.</p>
+        <?php endif; ?>
+      </div>
+
+      <!-- Events column -->
+      <div>
+        <div class="feed-head">
+          <h2>Upcoming events</h2>
+          <?php
+            if (!empty($__events['items'])) {
+                echo np_freshness_note($__events['fetched_at'], $__events['stale_days']);
+            }
+          ?>
+        </div>
+        <?php if (!empty($__events['items'])): ?>
+          <ul class="ev-list">
+            <?php foreach ($__events['items'] as $ev): ?>
+              <?php $ts = $ev['start'] ?? 0; ?>
+              <li class="ev-item">
+                <div class="ev-date">
+                  <div class="d"><?php echo $ts ? np_e(date('j', $ts)) : '·'; ?></div>
+                  <div class="mo"><?php echo $ts ? np_e(date('M', $ts)) : ''; ?></div>
+                </div>
+                <div class="ev-body">
+                  <h3><?php echo np_e($ev['title']); ?></h3>
+                  <p>
+                    <?php
+                      if ($ts) {
+                          echo np_e(!empty($ev['all_day']) ? 'All day' : date('g:i a', $ts));
+                      }
+                      if (!empty($ev['location'])) {
+                          echo ' · ' . np_e($ev['location']);
+                      }
+                    ?>
+                  </p>
+                </div>
+              </li>
+            <?php endforeach; ?>
+          </ul>
+          <div class="feed-foot"><a href="/events.html" class="btn btn-outline">See full calendar</a></div>
+        <?php else: ?>
+          <p class="feed-empty">Our events calendar is being set up. <a href="/events.html">View the calendar page</a> or <a href="#connect">ask us what's coming up</a>.</p>
+        <?php endif; ?>
+      </div>
+
     </div>
   </div>
 </section>
@@ -154,16 +274,18 @@
       <div>
         <h4>Explore</h4>
         <div class="foot-links">
-          <a href="/index.html">Home</a>
-            <a href="/index.html#movement">Movement</a>
+          <a href="/">Home</a>
+            <a href="/#movement">Movement</a>
+            <a href="/events.html">Events</a>
+            <a href="/#news">News</a>
             <a href="/resources.html">Resources</a>
         </div>
       </div>
       <div>
         <h4>Get involved</h4>
         <div class="foot-links">
-          <a href="/index.html#connect">Get in touch</a>
-          <a href="/index.html#connect">Volunteer</a>
+          <a href="/#connect">Get in touch</a>
+          <a href="/#connect">Volunteer</a>
           <a href="/resources.html">Resources</a>
         </div>
       </div>
@@ -183,5 +305,6 @@
 </footer>
 
 <script src="/assets/js/nav.js" defer></script>
+
 </body>
 </html>

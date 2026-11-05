@@ -2,4 +2,16 @@
 deployment:
   tasks:
     - export DEPLOYPATH=/home/swfbam48/parkinsonsniagara.ca/
-    - /bin/cp -R * $DEPLOYPATH
+    # Copy the site into place. Include dotfiles (.htaccess is essential) by
+    # copying the whole tree, not just the shell glob which skips dotfiles.
+    - /bin/cp -R ./. $DEPLOYPATH
+    # The home page is now index.php. Remove the old static index.html on the
+    # server so it doesn't shadow index.php as the directory index. (cp never
+    # deletes, so this has to be explicit.)
+    - /bin/rm -f $DEPLOYPATH/index.html
+    # Keep maintainer docs and the git metadata out of the public web root.
+    - /bin/rm -f $DEPLOYPATH/EDITORS.md $DEPLOYPATH/SETUP-news-events.md $DEPLOYPATH/MAINTAINERS.md $DEPLOYPATH/README.md $DEPLOYPATH/ROADMAP.md
+    - /bin/rm -rf $DEPLOYPATH/.git
+    # Make sure the cache directory exists and PHP can write to it.
+    - /bin/mkdir -p $DEPLOYPATH/cache
+    - /bin/chmod 775 $DEPLOYPATH/cache
